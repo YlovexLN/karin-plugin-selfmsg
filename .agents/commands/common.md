@@ -42,7 +42,13 @@ node scripts/pack.mjs
 ## 发 npm 包（GitHub Packages）
 
 包名 `@ylovexln/karin-plugin-selfmsg`，发布源 `https://npm.pkg.github.com`。
-正常流程是**打 tag → 建 Release**，由 [publish.yml](../../.github/workflows/publish.yml) 自动发布。
+正常流程是**推 `v*` tag**，由 [publish.yml](../../.github/workflows/publish.yml) 自动发布：
+
+```bash
+git tag v0.0.2 && git push origin v0.0.2
+```
+
+发布前会校验 tag 与 `package.json` 的 `version` 一致，不一致直接失败。
 
 本地手动发（需要 `write:packages` 的 token）：
 

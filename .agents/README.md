@@ -9,6 +9,5 @@
 | `workflows/` | 多步骤流程 | [verify.md](./workflows/verify.md) |
 | `skills/` | 可复用的操作说明 | [troubleshooting.md](./skills/troubleshooting.md) |
 | `commands/` | 可复用命令 | [common.md](./commands/common.md) |
-| `prompts/` | prompt 模板 | [System prompt.md](./prompts/System%20prompt.md) |
 
-暂未使用：`agents/`（无子代理角色）、`tools/`（无 MCP 集成）。
+暂未使用：`agents/`（无子代理角色）、`prompts/`（本地自用，不入库）、`tools/`（无 MCP 集成）。

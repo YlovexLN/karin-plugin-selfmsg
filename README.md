@@ -117,14 +117,15 @@ pnpm lint     # 需要先 pnpm install
 
 ## 发布
 
-推到 `main` 只跑检查，**打 Release 才会发到 GitHub Packages**（[`publish.yml`](./.github/workflows/publish.yml)）。
-版本号改 `package.json` 的 `version`，然后：
+推 `v*` 开头的 tag 即发布到 GitHub Packages（[`publish.yml`](./.github/workflows/publish.yml)）：
+先校验 tag 与 `package.json` 的 `version` 是否一致，再跑冒烟测试，最后 `npm publish`。
 
 ```bash
+# 先把 package.json 的 version 改成 0.0.2 并提交
 git tag v0.0.2 && git push origin v0.0.2
 ```
 
-再到 GitHub 上基于该 tag 创建 Release，Actions 会自动运行冒烟测试并发布。也可以在 Actions 页面手动触发。
+tag 与 `version` 不一致会直接失败——npm 不允许重发同一版本，这个校验能挡住打错 tag 的情况。
 
 ## 卸载与回退
 
