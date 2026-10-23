@@ -1,0 +1,14 @@
+{
+  "enable": true,
+  "group": true,
+  "groupSender": "10000",
+  "groupSenderName": "群成员",
+  "cooldownMs": 8000,
+  "quietMs": 8000,
+  "split": true,
+  "splitDelayMs": 1500,
+  "filterCard": true,
+  "match": "b23\\.tv|bilibili\\.com|bili2233|BV[0-9A-Za-z]{10}",
+  "matchAll": false,
+  "debug": false
+}

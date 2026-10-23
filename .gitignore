@@ -1,0 +1,17 @@
+# 依赖
+node_modules/
+
+# 运行时由 karin 生成，不提交
+@karinjs/
+
+# 本地环境变量
+.env
+.env.local
+
+# 构建产物
+dist/
+
+# 日志与系统垃圾
+*.log
+.DS_Store
+Thumbs.db
