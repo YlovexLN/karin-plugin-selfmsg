@@ -41,6 +41,19 @@ jobs:
         run: node scripts/test.mjs
 
       - name: 发布
-        run: npm publish --registry=https://npm.pkg.github.com
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          # 预发布版本（带 -）不能占用 latest，否则 npm i 会装到 beta
+          case "$VER" in
+            *-*)
+              DIST_TAG="${VER#*-}"      # beta.0
+              DIST_TAG="${DIST_TAG%%.*}" # beta
+              ;;
+            *)
+              DIST_TAG="latest"
+              ;;
+          esac
+          echo "version=$VER dist-tag=$DIST_TAG"
+          npm publish --registry=https://npm.pkg.github.com --tag "$DIST_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

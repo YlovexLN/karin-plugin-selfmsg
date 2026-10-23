@@ -162,6 +162,15 @@ git tag v0.0.2 && git push origin v0.0.2
 
 tag 与 `version` 不一致会直接失败——npm 不允许重发同一版本，这个校验能挡住打错 tag 的情况。
 
+**预发布版本**（`0.0.2-beta.0` 这种带 `-` 的）会自动发布到 `beta` 这个 dist-tag，不会占用 `latest`：
+
+```bash
+npm i @ylovexln/karin-plugin-selfmsg@beta     # 安装最新预发布
+npm i @ylovexln/karin-plugin-selfmsg          # 仍然拿 stable
+```
+
+`-rc.1` → `rc`，`-alpha.3` → `alpha`，规则是取预发布标识的第一段。
+
 ## 卸载与回退
 
 删除插件目录并重启 Karin 即可还原。本插件不改框架源码、不写数据库；配置文件在
