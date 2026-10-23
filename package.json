@@ -9,7 +9,6 @@
     "karin": ">=1.8.0"
   },
   "karin": {
-    "main": "index.js",
     "apps": [
       "apps"
     ],
@@ -47,7 +46,11 @@
     "bilibili",
     "kkk"
   ],
-  "author": "YlovexLN",
+  "author": {
+    "name": "YlovexLN",
+    "email": "ylovexln@foxmail.com",
+    "url": "https://github.com/YlovexLN"
+  },
   "license": "AGPL-3.0-only",
   "devDependencies": {
     "eslint": "^9.0.0",

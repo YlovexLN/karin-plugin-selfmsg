@@ -2,6 +2,8 @@
 
 让 Karin 接受 OneBot11 的 `message_sent`（上报自身消息）事件，使其进入插件层。
 
+[GitHub](https://github.com/YlovexLN/karin-plugin-selfmsg) · [问题反馈](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) · 包名 `@ylovexln/karin-plugin-selfmsg` · AGPL-3.0
+
 ## 解决什么问题
 
 同一个 QQ 号接入多个框架时（如 AstrBot + Karin 共用一个 LLBot），协议端会把"bot 自己发出的
@@ -47,19 +49,44 @@ karin-plugin-selfmsg/
 
 ### 方式二：从 GitHub Packages 安装
 
-包名为 `@ylovexln/karin-plugin-selfmsg`，发布在 GitHub 的 npm 源上，**拉取需要 GitHub Token**：
+包名为 `@ylovexln/karin-plugin-selfmsg`，发布在 GitHub 的 npm 源上，**拉取需要 GitHub Token**
+（[创建 token](https://github.com/settings/tokens)，勾 `read:packages`）。
 
-```bash
-# ~/.npmrc
+先在 Karin 根目录的 `.npmrc` 里加两行（也可以写进 `~/.npmrc` 全局生效）：
+
+```ini
 @ylovexln:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=<你的 GitHub Token，需 read:packages 权限>
+//npm.pkg.github.com/:_authToken=<你的 token>
 ```
 
+然后停掉 Karin，在 **Karin 根目录**（不是 `plugins/`）里装：
+
+**pnpm**
+
 ```bash
+cd <Karin 根目录>
+pnpm add @ylovexln/karin-plugin-selfmsg
+```
+
+等价的分步写法（不想手改 `.npmrc` 时）：
+
+```bash
+pnpm config set @ylovexln:registry https://npm.pkg.github.com
+pnpm config set //npm.pkg.github.com/:_authToken <你的 token>
+pnpm add @ylovexln/karin-plugin-selfmsg
+```
+
+**npm**
+
+```bash
+cd <Karin 根目录>
 npm i @ylovexln/karin-plugin-selfmsg
 ```
 
-GitHub Packages 不允许匿名下载，所以每个使用者都得配自己的 token——这也是为什么方式一更适合分享给别人。
+装完重启 Karin。包会落在 `node_modules/@ylovexln/karin-plugin-selfmsg`，Karin 启动时自动扫描加载。
+
+> GitHub Packages 不允许匿名下载，所以每个使用者都得配自己的 token——这也是为什么方式一更适合分享给别人。
+> 如果你用的是 pnpm 且开了 `strict-peer-dependencies`，装完提示 peer 警告可以忽略，本插件没有运行时依赖。
 
 ### 确认接管成功
 
@@ -104,6 +131,14 @@ GitHub Packages 不允许匿名下载，所以每个使用者都得配自己的 
 - **群消息的发送者必须伪造**：协议里自发消息的 `sender` 永远是 bot。默认 `10000` 是安全值，填主人或管理员会因为 `perm: master` 看的就是这个字段而被误判。
 - **依赖未文档化的内部符号**（`bot._onebot`、`karin.getBot()`、`BOT_CONNECT`）。若日志出现「没有找到 _onebot，接管失败」，说明框架升级改了字段名。
 
+## 免责声明
+
+- 本插件按 **AGPL-3.0** 原样提供，**不附带任何担保**，使用风险自负。
+- 它依赖 Karin 未公开的内部符号（`bot._onebot`、`karin.getBot()`、`BOT_CONNECT`），**框架升级后可能失效**，请自行评估生产环境风险。
+- 插件只在本机进程内改写事件对象，**不联网、不上传、不收集任何数据**，不写数据库，不改框架源码。
+- 因使用本插件导致的账号风控、消息异常、群内刷屏等后果，由使用者自行承担。
+- 与腾讯、Bilibili、AstrBot、Karin 官方均无隶属关系。
+
 ## 开发
 
 ```bash
@@ -131,6 +166,13 @@ tag 与 `version` 不一致会直接失败——npm 不允许重发同一版本�
 
 删除插件目录并重启 Karin 即可还原。本插件不改框架源码、不写数据库；配置文件在
 `@karinjs/karin-plugin-selfmsg/config/config.json`，删掉后重启即恢复默认。
+
+## 作者
+
+YlovexLN · [GitHub](https://github.com/YlovexLN) · [ylovexln@foxmail.com](mailto:ylovexln@foxmail.com)
+
+用出问题请到 [Issues](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) 提，附上 Karin 版本、
+日志里的 `[selfmsg]` 行、以及复现步骤。
 
 ## 致谢
 

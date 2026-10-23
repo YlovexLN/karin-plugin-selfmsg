@@ -222,7 +222,8 @@ export default defineConfig({
     name: PluginName,
     author: {
       name: 'YlovexLN',
-      home: 'https://github.com/YlovexLN'
+      home: 'https://github.com/YlovexLN/karin-plugin-selfmsg',
+      avatar: 'https://github.com/YlovexLN.png'
     },
     icon: {
       name: 'sync_alt',

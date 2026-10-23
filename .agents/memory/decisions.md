@@ -126,3 +126,21 @@
 
 **代价**：N 个链接会产生 N 次渲染，对 puppeteer 有压力；间隔可配置。
 另外拆分出来的后续事件必须走 `rawEmit`，否则会被自己的静默窗口吃掉（见 I3）。
+
+---
+
+## ADR-8 包名带 scope，与「必须以 karin-plugin- 开头」有出入
+
+**背景**：插件规范要求插件包名以 `karin-plugin-` 为前缀；而 GitHub Packages 强制要求
+包名写成 `@<仓库所有者>/<名字>`，两者不能同时满足。
+
+**决定**：取 `@ylovexln/karin-plugin-selfmsg`，前缀保留在 scope 之后。
+
+**为什么不改回无 scope**：GitHub Packages 的 npm 源只接受 scoped 包名，无 scope 根本推不上去。
+若改发 npmjs.org 公共源，可以回到 `karin-plugin-selfmsg` 干净名字。
+
+**风险评估**：Karin 加载 npm 插件时，`node_modules/@ylovexln/karin-plugin-selfmsg` 的**末级目录名**
+仍然以 `karin-plugin-` 开头，常见的目录名判断不会失效；但若有版本按完整包名做前缀校验，可能识别失败。
+`package.md` 里写的是「npm 包则没有限制」，`standard.md` 里写的是「强制」，两份官方文档本身不一致。
+
+**兜底**：如果实测加载失败，最稳的做法是让用户按「方式一」把目录直接放进 `plugins/`。
