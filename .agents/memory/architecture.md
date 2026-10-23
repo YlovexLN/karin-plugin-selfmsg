@@ -94,6 +94,11 @@ Karin 的 `createMessage` 会读 `event.sender.user_id`、`sender.nickname`、`m
 路径依赖框架导出的 `karinPathBase`（= `<karin根>/@karinjs`），
 桩件或旧版本没有该导出时退化为 `process.cwd()/@karinjs`。
 
+> npm 包名是 `@ylovexln/karin-plugin-selfmsg`（GitHub Packages 要求 scoped），
+> 但 `<包名>` 这一级固定用 `dir.js` 里的 `PluginName`（不带 scope），
+> 所以配置始终落在 `@karinjs/karin-plugin-selfmsg/config/config.json`，换源或换所有者都不用迁移。
+> 目录由 `seedConfig()` 自己 `mkdirSync` 创建，不依赖 `karin.files`。
+
 ## 状态设计
 
 运行时状态（`patched` / `inited` / 冷却表 / 统计）全部挂在 `globalThis`，用

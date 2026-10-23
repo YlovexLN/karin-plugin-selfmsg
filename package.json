@@ -1,5 +1,5 @@
 {
-  "name": "karin-plugin-selfmsg",
+  "name": "@ylovexln/karin-plugin-selfmsg",
   "version": "0.0.1",
   "description": "让 Karin 接受 OneBot11 的 message_sent（上报自身消息）事件，使其进入插件层；用于同账号多框架场景下让 kkk 收到其它框架发出的链接",
   "type": "module",
@@ -13,10 +13,26 @@
     "apps": [
       "apps"
     ],
-    "web": "./web.config.js",
-    "files": [
-      "config"
-    ]
+    "web": "./web.config.js"
+  },
+  "files": [
+    "index.js",
+    "dir.js",
+    "web.config.js",
+    "apps",
+    "utils",
+    "config"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YlovexLN/karin-plugin-selfmsg.git"
+  },
+  "homepage": "https://github.com/YlovexLN/karin-plugin-selfmsg#readme",
+  "bugs": {
+    "url": "https://github.com/YlovexLN/karin-plugin-selfmsg/issues"
   },
   "scripts": {
     "test": "node scripts/test.mjs",
@@ -33,7 +49,6 @@
   ],
   "author": "YlovexLN",
   "license": "AGPL-3.0-only",
-  "private": true,
   "devDependencies": {
     "eslint": "^9.0.0",
     "neostandard": "^0.11.0"

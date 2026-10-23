@@ -34,6 +34,8 @@ karin-plugin-selfmsg/
 
 ## 安装
 
+### 方式一：直接放目录（推荐）
+
 把整个 `karin-plugin-selfmsg/` 目录放进 Karin 的插件目录，然后重启 Karin：
 
 ```
@@ -43,7 +45,25 @@ karin-plugin-selfmsg/
 └── ...
 ```
 
-启动日志出现这行即为接管成功：
+### 方式二：从 GitHub Packages 安装
+
+包名为 `@ylovexln/karin-plugin-selfmsg`，发布在 GitHub 的 npm 源上，**拉取需要 GitHub Token**：
+
+```bash
+# ~/.npmrc
+@ylovexln:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=<你的 GitHub Token，需 read:packages 权限>
+```
+
+```bash
+npm i @ylovexln/karin-plugin-selfmsg
+```
+
+GitHub Packages 不允许匿名下载，所以每个使用者都得配自己的 token——这也是为什么方式一更适合分享给别人。
+
+### 确认接管成功
+
+启动日志出现这行即可：
 
 ```
 [selfmsg] 已接管 bot <self_id>（来源: BOT_CONNECT），message_sent 将被当作普通消息分发
@@ -94,6 +114,17 @@ pnpm lint     # 需要先 pnpm install
 25 项断言覆盖：私聊 / 群聊放行、静默窗口、白名单、产物过滤、多链接拆分、WebUI 保存。
 
 维护者文档见 [`AGENTS.md`](./AGENTS.md) 与 [`.agents/`](./.agents/)。
+
+## 发布
+
+推到 `main` 只跑检查，**打 Release 才会发到 GitHub Packages**（[`publish.yml`](./.github/workflows/publish.yml)）。
+版本号改 `package.json` 的 `version`，然后：
+
+```bash
+git tag v0.0.2 && git push origin v0.0.2
+```
+
+再到 GitHub 上基于该 tag 创建 Release，Actions 会自动运行冒烟测试并发布。也可以在 Actions 页面手动触发。
 
 ## 卸载与回退
 

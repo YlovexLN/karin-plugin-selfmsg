@@ -39,6 +39,20 @@ node scripts/pack.mjs
 `LICENSE` 必须保留——AGPL 分发要求。
 版本号读自 `package.json`，只用 Node 内置模块，不依赖 Python 或任何第三方包。
 
+## 发 npm 包（GitHub Packages）
+
+包名 `@ylovexln/karin-plugin-selfmsg`，发布源 `https://npm.pkg.github.com`。
+正常流程是**打 tag → 建 Release**，由 [publish.yml](../../.github/workflows/publish.yml) 自动发布。
+
+本地手动发（需要 `write:packages` 的 token）：
+
+```bash
+NODE_AUTH_TOKEN=<token> npm publish --registry=https://npm.pkg.github.com
+```
+
+注意：仓库里的 `.npmrc` 指向 npmmirror，但 `publishConfig.registry` 和命令行 `--registry`
+都会覆盖它，发布不会走错源。
+
 ## 部署后的自检
 
 部署由使用者自行完成。插件装好后，在 Karin 日志里找 `selfmsg`，或给机器人发 `#转发状态`

@@ -15,3 +15,8 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# .agents
+
+.agents/rules/Assistant operating specification.md
+.agents/prompts/System prompt.md
