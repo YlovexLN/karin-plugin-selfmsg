@@ -1,21 +1,18 @@
 # 双源发布：npmjs.com（无 scope）+ GitHub Packages（scoped）
 #
-# - 推 v* 开头的 tag 即发布；也可以手动触发
-# - 校验 tag 与 package.json 的 version 一致 → 冒烟测试 → 依次发两个源
-# - 预发布版本（带 -）发布到 beta/rc 等 dist-tag，不占 latest
-# - 发布前查该版本是否已存在，重跑自动跳过，不会撞 E403
+# 拆成两个 job，原因是权限必须隔离：
+#   npmjs job       需要 id-token: write（Trusted Publishing 走 OIDC）
+#   GitHub Packages job 绝对不能有 id-token
+#     —— 有的话 npm 11 会先尝试 OIDC 换凭据，POST 到 GitHub 的
+#        /-/npm/v1/oidc/token/exchange 得到 404，然后直接 ENEEDAUTH，
+#        也不会回退到 NODE_AUTH_TOKEN。
 #
-# 认证方式：
-#   npmjs.com        → Trusted Publishing（OIDC），仓库里不存任何 npm token
-#   GitHub Packages  → Actions 自带 GITHUB_TOKEN（permissions.packages: write）
-#
-# 为什么包名要分两个：GitHub Packages 强制 `@owner/` 前缀，而 npm 的 publishConfig
-# 不支持改 name，只能在发布前用 `npm pkg set` 临时改。
-#
-# 首次发布的特殊之处：Trusted Publisher 只能配置在已存在的包上，
-# 所以第一版由维护者本地 `npm login && npm publish` 手动发出，
-# 之后到 https://www.npmjs.com/package/karin-plugin-selfmsg/access 绑定本 workflow，
-# CI 才开始免 token 发布。
+# 其余规则：
+# - 推 v* tag 即发布；也可以手动触发
+# - 校验 tag 与 package.json 的 version 一致 → 冒烟测试 → 推导 dist-tag
+# - 发布前查该版本是否已存在，重跑自动跳过
+# - 预发布版本（带 -）发到 beta/rc 等 dist-tag，不占 latest
+# - 包名分两个：GitHub Packages 强制 `@owner/` 前缀，发布前用 npm pkg set 临时改
 name: publish
 
 on:
@@ -24,23 +21,18 @@ on:
       - 'v*'
   workflow_dispatch:
 
-# 连推多个 tag 时串行，避免两个 run 抢同一个版本号
 concurrency:
   group: publish
   cancel-in-progress: false
 
-permissions:
-  contents: read
-  id-token: write # npmjs Trusted Publishing（OIDC）
-  packages: write # GitHub Packages
-
 jobs:
-  publish:
+  npmjs:
+    name: 发布到 npmjs.com
     runs-on: ubuntu-latest
-    # fork 上推 tag 不空跑
     if: github.repository == 'YlovexLN/karin-plugin-selfmsg'
-    env:
-      GITHUB_PKG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      id-token: write # Trusted Publishing 必需
     steps:
       - uses: actions/checkout@v4
 
@@ -59,7 +51,6 @@ jobs:
             exit 1
           fi
 
-      # tag 打错会导致版本号与代码不符，而 npm 不允许重发同版本
       - name: 校验 tag 与 package.json 版本一致
         run: |
           TAG="${GITHUB_REF_NAME#v}"
@@ -73,97 +64,113 @@ jobs:
       - name: 冒烟测试
         run: node scripts/test.mjs
 
-      - name: 推导 dist-tag
-        id: dist
-        run: |
-          VER="$(node -p "require('./package.json').version")"
-          # 预发布版本（带 -）不能占用 latest，否则 npm i 会装到 beta
-          case "$VER" in
-            *-*)
-              DIST_TAG="${VER#*-}"       # beta.1
-              DIST_TAG="${DIST_TAG%%.*}" # beta
-              ;;
-            *)
-              DIST_TAG="latest"
-              ;;
-          esac
-          echo "value=$DIST_TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VER dist-tag=$DIST_TAG"
-
-      # 幂等：重跑同一 tag 时跳过已发布的源，而不是红在 E403
-      #
-      # 用 HTTP 状态码判断，不用 npm view 的错误码——GitHub Packages 对不存在的包
-      # 返回 401（不是 404），npm 会把它包成非 E404 的错误，容易误判成"查询失败"。
-      - name: 查询两个源上的发布状态
+      # 幂等：已发布就跳过，重跑同一 tag 不会红在 E403
+      - name: 检查 npmjs 上是否已存在
         id: state
-        env:
-          GITHUB_PKG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VER="$(node -p "require('./package.json').version")"
-
-          # npmjs：版本端点最直接，200=有 404=没有
-          NPM_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' \
             "https://registry.npmjs.org/karin-plugin-selfmsg/$VER")
-          case "$NPM_CODE" in
-            200) NPM_NEEDED=false ;;
-            404) NPM_NEEDED=true ;;
-            *)
-              echo "::error::npmjs 状态查询失败（HTTP $NPM_CODE）"
-              exit 1
-              ;;
+          case "$CODE" in
+            200) echo "needed=false" >> "$GITHUB_OUTPUT"; echo "已存在，跳过" ;;
+            404) echo "needed=true"  >> "$GITHUB_OUTPUT"; echo "未发布" ;;
+            *) echo "::error::npmjs 状态查询失败（HTTP $CODE）"; exit 1 ;;
           esac
 
-          # GitHub Packages：包还没建时未授权会返回 401/403，按「未发布」处理
-          GH_CODE=$(curl -s -o /tmp/gh-pkg.json -w '%{http_code}' \
-            -H "Authorization: Bearer $GITHUB_PKG_TOKEN" \
-            -H "Accept: application/vnd.npm.install-v1+json" \
-            "https://npm.pkg.github.com/@ylovexln%2Fkarin-plugin-selfmsg")
-          case "$GH_CODE" in
-            200)
-              if node -e "const p=require('/tmp/gh-pkg.json');process.exit(p.versions&&p.versions['$VER']?0:1)"; then
-                GH_NEEDED=false
-              else
-                GH_NEEDED=true
-              fi
-              ;;
-            404) GH_NEEDED=true ;;
-            401|403)
-              echo "::warning::GitHub Packages 返回 $GH_CODE（包尚未创建或 token 无读权限），按未发布处理"
-              GH_NEEDED=true
-              ;;
-            *)
-              echo "::error::GitHub Packages 状态查询失败（HTTP $GH_CODE）"
-              exit 1
-              ;;
-          esac
-
-          echo "npmjs_needed=$NPM_NEEDED" >> "$GITHUB_OUTPUT"
-          echo "gh_needed=$GH_NEEDED" >> "$GITHUB_OUTPUT"
-          echo "待发布：npmjs=$NPM_NEEDED GitHubPackages=$GH_NEEDED"
-
-      # 发布前剥掉开发用字段，让 npm 上的 manifest 只留运行时信息
+      # 剥离开发字段，让 npm 上的 manifest 只留运行时信息
       - name: 清理 manifest
         run: |
           npm pkg delete devDependencies
           npm pkg delete scripts
 
-      # Trusted Publishing：不带 NODE_AUTH_TOKEN，npm 用 OIDC 交换短期凭据，
-      # provenance 也由 npm 自动生成，不需要 --provenance
-      - name: 发布到 npmjs.com
-        if: steps.state.outputs.npmjs_needed == 'true'
+      - name: 推导 dist-tag
+        id: dist
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          case "$VER" in
+            *-*) DIST_TAG="${VER#*-}"; DIST_TAG="${DIST_TAG%%.*}" ;;
+            *)   DIST_TAG="latest" ;;
+          esac
+          echo "value=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VER dist-tag=$DIST_TAG"
+
+      # OIDC：不带 NODE_AUTH_TOKEN，provenance 由 npm 自动生成
+      - name: 发布
+        if: steps.state.outputs.needed == 'true'
         run: |
           npm pkg set name="karin-plugin-selfmsg"
           npm publish --registry=https://registry.npmjs.org \
             --tag "${{ steps.dist.outputs.value }}"
 
-      - name: 发布到 GitHub Packages
-        if: steps.state.outputs.gh_needed == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  github-packages:
+    name: 发布到 GitHub Packages
+    runs-on: ubuntu-latest
+    needs: [npmjs]
+    if: github.repository == 'YlovexLN/karin-plugin-selfmsg'
+    permissions:
+      contents: read
+      packages: write
+      # 刻意不给 id-token：给了 npm 会走 OIDC 并失败，见文件顶部说明
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 校验 tag 与 package.json 版本一致
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER="$(node -p "require('./package.json').version")"
+          [ "$TAG" = "$VER" ] || { echo "::error::tag $TAG 与版本 $VER 不一致"; exit 1; }
+          echo "version=$VER"
+
+      # GitHub Packages 对不存在的包返回 401（不是 404），按未发布处理
+      - name: 检查 GitHub Packages 上是否已存在
+        id: state
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          CODE=$(curl -s -o /tmp/gh-pkg.json -w '%{http_code}' \
+            -H "Authorization: Bearer $NODE_AUTH_TOKEN" \
+            -H "Accept: application/vnd.npm.install-v1+json" \
+            "https://npm.pkg.github.com/@ylovexln%2Fkarin-plugin-selfmsg")
+          case "$CODE" in
+            200)
+              if node -e "const p=require('/tmp/gh-pkg.json');process.exit(p.versions&&p.versions['$VER']?0:1)"; then
+                echo "needed=false" >> "$GITHUB_OUTPUT"; echo "已存在，跳过"
+              else
+                echo "needed=true" >> "$GITHUB_OUTPUT"; echo "未发布"
+              fi
+              ;;
+            404|401|403)
+              echo "needed=true" >> "$GITHUB_OUTPUT"; echo "未发布（HTTP $CODE）"
+              ;;
+            *) echo "::error::GitHub Packages 状态查询失败（HTTP $CODE）"; exit 1 ;;
+          esac
+
+      - name: 清理 manifest
+        run: |
+          npm pkg delete devDependencies
+          npm pkg delete scripts
+
+      - name: 推导 dist-tag
+        id: dist
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          case "$VER" in
+            *-*) DIST_TAG="${VER#*-}"; DIST_TAG="${DIST_TAG%%.*}" ;;
+            *)   DIST_TAG="latest" ;;
+          esac
+          echo "value=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "dist-tag=$DIST_TAG"
+
+      - name: 发布
+        if: steps.state.outputs.needed == 'true'
         run: |
           npm pkg set name="@ylovexln/karin-plugin-selfmsg"
-          # setup-node 的 registry-url 指向 npmjs，只为该 host 写了 token 映射；
-          # GitHub Packages 需要自己补一行，否则 npm 发请求时不带 Authorization
+          # setup-node 只写了默认源的映射，GitHub Packages 需要自己补一行
           echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> "$HOME/.npmrc"
           npm publish --registry=https://npm.pkg.github.com \
             --tag "${{ steps.dist.outputs.value }}" --loglevel=http
