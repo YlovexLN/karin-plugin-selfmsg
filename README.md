@@ -1,6 +1,11 @@
-# karin-plugin-selfmsg
+![karin-plugin-selfmsg](https://socialify.git.ci/YlovexLN/karin-plugin-selfmsg/image?language=1&owner=1&name=1&stargazers=1&theme=Light)
 
 让 Karin 接受 OneBot11 的 `message_sent`（上报自身消息）事件，使其进入插件层。
+
+[![npm version](https://img.shields.io/npm/v/karin-plugin-selfmsg.svg?style=flat-square)](https://www.npmjs.com/package/karin-plugin-selfmsg)
+[![license](https://img.shields.io/badge/license-AGPL--3.0-blue.svg?style=flat-square)](./LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg?style=flat-square)](https://nodejs.org)
+[![Karin](https://img.shields.io/badge/karin-%3E%3D1.8.0-4F8EF7.svg?style=flat-square)](https://github.com/KarinJS/Karin)
 
 [GitHub](https://github.com/YlovexLN/karin-plugin-selfmsg) · [问题反馈](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) · npm `karin-plugin-selfmsg` · AGPL-3.0
 
