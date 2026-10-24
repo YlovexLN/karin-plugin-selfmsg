@@ -144,3 +144,26 @@
 `package.md` 里写的是「npm 包则没有限制」，`standard.md` 里写的是「强制」，两份官方文档本身不一致。
 
 **兜底**：如果实测加载失败，最稳的做法是让用户按「方式一」把目录直接放进 `plugins/`。
+
+---
+
+## ADR-9 同一版本同时发 npmjs.com 与 GitHub Packages
+
+**背景**：GitHub Packages 不支持匿名下载（公开包也要 token），别人装插件必须先配 `.npmrc` 和 PAT；
+而 npmjs.com 的公开包是匿名可读的。插件是要给别人用的，token 门槛太高。
+
+**决定**：`publish.yml` 里连续发两个源，包名统一为 `@ylovexln/karin-plugin-selfmsg`。
+npmjs 的 scoped 公共包同样匿名可装，所以不必为了发 npmjs 而改回无 scope 名字。
+
+**为什么不在 npmjs 用无 scope 的 `karin-plugin-selfmsg`**：一个 package.json 只能有一个 name，
+GitHub Packages 又强制 scope，二选一。保留 scope 能双源同版本发布，代价是安装命令带 `@ylovexln/`。
+
+**代价**：
+
+- 需要多维护一个 `NPM_TOKEN` secret（npmjs 的 Automation token）；
+- 两个源的版本必须一致，`publish.yml` 里用同一个 tag 和同一个 dist-tag 保证这点；
+- 若某天想彻底符合「包名以 karin-plugin- 开头」的规范，只能放弃 GitHub Packages，
+  改成无 scope 名只发 npmjs（见 ADR-8）。
+
+**幂等性**：`NPM_TOKEN` 的检查放在所有发布动作之前，缺 token 时立刻失败，
+避免 GitHub Packages 已发出去、npmjs 没发，重跑又撞 `EPUBLISHCONFLICT`。

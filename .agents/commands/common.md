@@ -39,9 +39,9 @@ node scripts/pack.mjs
 `LICENSE` 必须保留——AGPL 分发要求。
 版本号读自 `package.json`，只用 Node 内置模块，不依赖 Python 或任何第三方包。
 
-## 发 npm 包（GitHub Packages）
+## 发 npm 包（npmjs + GitHub Packages）
 
-包名 `@ylovexln/karin-plugin-selfmsg`，发布源 `https://npm.pkg.github.com`。
+包名 `@ylovexln/karin-plugin-selfmsg`，同时发到 `https://registry.npmjs.org` 与 `https://npm.pkg.github.com`。
 正常流程是**推 `v*` tag**，由 [publish.yml](../../.github/workflows/publish.yml) 自动发布：
 
 ```bash
@@ -50,14 +50,15 @@ git tag v0.0.2 && git push origin v0.0.2
 
 发布前会校验 tag 与 `package.json` 的 `version` 一致，不一致直接失败。
 
-本地手动发（需要 `write:packages` 的 token）：
+本地手动发（两个源各需一个 token）：
 
 ```bash
-NODE_AUTH_TOKEN=<token> npm publish --registry=https://npm.pkg.github.com
+NODE_AUTH_TOKEN=<npm token> npm publish --registry=https://registry.npmjs.org
+NODE_AUTH_TOKEN=<gh token>  npm publish --registry=https://npm.pkg.github.com
 ```
 
-注意：仓库里的 `.npmrc` 指向 npmmirror，但 `publishConfig.registry` 和命令行 `--registry`
-都会覆盖它，发布不会走错源。
+注意：仓库的 `.npmrc` 不指定源（走官方 npmjs，镜像那行默认注释掉），
+发布源由 `publishConfig.registry` 与命令行 `--registry` 决定。
 
 ## 部署后的自检
 

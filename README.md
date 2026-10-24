@@ -47,9 +47,20 @@ karin-plugin-selfmsg/
 └── ...
 ```
 
-### 方式二：从 GitHub Packages 安装
+### 方式二：从 npmjs.com 安装（需要 Karin 支持 npm 插件）
 
-包名为 `@ylovexln/karin-plugin-selfmsg`，发布在 GitHub 的 npm 源上，**拉取需要 GitHub Token**
+包名 `@ylovexln/karin-plugin-selfmsg`，公开包，**不需要 token**。
+
+```bash
+cd <Karin 根目录>
+pnpm add @ylovexln/karin-plugin-selfmsg
+# 或
+npm i @ylovexln/karin-plugin-selfmsg
+```
+
+### 方式三：从 GitHub Packages 安装
+
+同一个版本也发布在 GitHub 的 npm 源上，但 **GitHub Packages 不允许匿名下载，需要自己的 token**
 （[创建 token](https://github.com/settings/tokens)，勾 `read:packages`）。
 
 先在 Karin 根目录的 `.npmrc` 里加两行（也可以写进 `~/.npmrc` 全局生效）：
@@ -59,16 +70,12 @@ karin-plugin-selfmsg/
 //npm.pkg.github.com/:_authToken=<你的 token>
 ```
 
-然后停掉 Karin，在 **Karin 根目录**（不是 `plugins/`）里装：
-
-**pnpm**
-
 ```bash
 cd <Karin 根目录>
 pnpm add @ylovexln/karin-plugin-selfmsg
 ```
 
-等价的分步写法（不想手改 `.npmrc` 时）：
+不想手改 `.npmrc` 的话：
 
 ```bash
 pnpm config set @ylovexln:registry https://npm.pkg.github.com
@@ -76,17 +83,13 @@ pnpm config set //npm.pkg.github.com/:_authToken <你的 token>
 pnpm add @ylovexln/karin-plugin-selfmsg
 ```
 
-**npm**
+### 装完确认
 
-```bash
-cd <Karin 根目录>
-npm i @ylovexln/karin-plugin-selfmsg
-```
+不管用哪种方式，都要在 **Karin 根目录**（不是 `plugins/`）安装，包会落在
+`node_modules/@ylovexln/karin-plugin-selfmsg`，重启 Karin 后自动扫描加载。
 
-装完重启 Karin。包会落在 `node_modules/@ylovexln/karin-plugin-selfmsg`，Karin 启动时自动扫描加载。
-
-> GitHub Packages 不允许匿名下载，所以每个使用者都得配自己的 token——这也是为什么方式一更适合分享给别人。
-> 如果你用的是 pnpm 且开了 `strict-peer-dependencies`，装完提示 peer 警告可以忽略，本插件没有运行时依赖。
+> GitHub Packages 那条路要配 token、要处理 workspace 和软链接，麻烦得多。想少折腾就用方式一或方式二。
+> pnpm 提示 peer 警告可以忽略，本插件没有运行时依赖。
 
 ### 确认接管成功
 
@@ -152,13 +155,17 @@ pnpm lint     # 需要先 pnpm install
 
 ## 发布
 
-推 `v*` 开头的 tag 即发布到 GitHub Packages（[`publish.yml`](./.github/workflows/publish.yml)）：
-先校验 tag 与 `package.json` 的 `version` 是否一致，再跑冒烟测试，最后 `npm publish`。
+推 `v*` 开头的 tag 即发布，**同一版本会同时发到 npmjs.com 和 GitHub Packages**
+（[`publish.yml`](./.github/workflows/publish.yml)）：先校验 tag 与 `package.json` 的 `version`
+是否一致，再跑冒烟测试，然后依次发两个源。
 
 ```bash
-# 先把 package.json 的 version 改成 0.0.2 并提交
-git tag v0.0.2 && git push origin v0.0.2
+# 先把 package.json 的 version 改成 0.0.3 并提交
+git tag v0.0.3 && git push origin v0.0.3
 ```
+
+发布需要仓库里配好 `NPM_TOKEN`（npmjs 的 Automation token）——GitHub Packages 用自带
+`GITHUB_TOKEN`，npmjs 用它。缺了会在第一步就失败，不会出现"只发出去一半"。
 
 tag 与 `version` 不一致会直接失败——npm 不允许重发同一版本，这个校验能挡住打错 tag 的情况。
 

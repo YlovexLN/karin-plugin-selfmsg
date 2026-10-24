@@ -1,9 +1,10 @@
-# 发布到 GitHub Packages（npm.pkg.github.com）
+# 双源发布：GitHub Packages + npmjs.com
 #
-# - 推 v* 开头的 tag 即发布；也可以在 Actions 页面手动触发
-# - 发布前先校验 tag 与 package.json 的 version 一致，再跑冒烟测试
-# - 凭据用仓库自带的 GITHUB_TOKEN，不需要额外 secret
-# - 包名必须是 `@<仓库所有者>/...`，换所有者时同步 package.json 的 name
+# - 推 v* 开头的 tag 即发布；也可以手动触发
+# - 发布前校验 tag 与 package.json 的 version 一致，再跑冒烟测试
+# - 预发布版本（带 -）发布到 beta/rc 等 dist-tag，不占 latest
+# - GitHub Packages 用自带 GITHUB_TOKEN；npmjs 用 secrets.NPM_TOKEN
+# - 包名必须是 `@<仓库所有者>/...`（GitHub Packages 要求），npmjs 同样接受 scoped 公共包
 name: publish
 
 on:
@@ -18,6 +19,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +28,15 @@ jobs:
         with:
           node-version: 20
           registry-url: https://npm.pkg.github.com
+
+      # 放在最前面：缺 token 时立刻失败，避免只发出去一半、重跑又撞版本冲突
+      - name: 检查 NPM_TOKEN
+        run: |
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "::error::缺少 secrets.NPM_TOKEN，无法发布到 npmjs.com"
+            echo "在仓库 Settings → Secrets and variables → Actions 里添加 NPM_TOKEN（Automation 类型）"
+            exit 1
+          fi
 
       # tag 打错会导致版本号与代码不符，而 npm 不允许重发同版本
       - name: 校验 tag 与 package.json 版本一致
@@ -40,20 +52,29 @@ jobs:
       - name: 冒烟测试
         run: node scripts/test.mjs
 
-      - name: 发布
+      - name: 推导 dist-tag
+        id: dist
         run: |
           VER="$(node -p "require('./package.json').version")"
           # 预发布版本（带 -）不能占用 latest，否则 npm i 会装到 beta
           case "$VER" in
             *-*)
-              DIST_TAG="${VER#*-}"      # beta.0
+              DIST_TAG="${VER#*-}"       # beta.1
               DIST_TAG="${DIST_TAG%%.*}" # beta
               ;;
             *)
               DIST_TAG="latest"
               ;;
           esac
+          echo "value=$DIST_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VER dist-tag=$DIST_TAG"
-          npm publish --registry=https://npm.pkg.github.com --tag "$DIST_TAG"
+
+      - name: 发布到 GitHub Packages
+        run: npm publish --registry=https://npm.pkg.github.com --tag "${{ steps.dist.outputs.value }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 发布到 npmjs.com
+        run: npm publish --registry=https://registry.npmjs.org --tag "${{ steps.dist.outputs.value }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
