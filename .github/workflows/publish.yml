@@ -158,9 +158,12 @@ jobs:
 
       - name: 发布到 GitHub Packages
         if: steps.state.outputs.gh_needed == 'true'
-        run: |
-          npm pkg set name="@ylovexln/karin-plugin-selfmsg"
-          npm publish --registry=https://npm.pkg.github.com \
-            --tag "${{ steps.dist.outputs.value }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm pkg set name="@ylovexln/karin-plugin-selfmsg"
+          # setup-node 的 registry-url 指向 npmjs，只为该 host 写了 token 映射；
+          # GitHub Packages 需要自己补一行，否则 npm 发请求时不带 Authorization
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> "$HOME/.npmrc"
+          npm publish --registry=https://npm.pkg.github.com \
+            --tag "${{ steps.dist.outputs.value }}" --loglevel=http
