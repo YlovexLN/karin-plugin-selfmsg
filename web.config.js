@@ -230,7 +230,7 @@ export default defineConfig({
       size: 24,
       color: '#4F8EF7'
     },
-    version: '0.0.2-beta.1',
+    version: '0.0.2',
     description: '把 OneBot11 的 message_sent 改写成消息事件，让下游解析插件（如 kkk）收到其它框架发出的链接'
   },
   components: buildComponents,

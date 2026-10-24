@@ -23,6 +23,7 @@ Karin 的 OneBot 适配器只分发 `message` / `notice` / `request` / `meta_eve
 | `web.config.js` | WebUI 配置面板 |
 | `scripts/test.mjs` | 冒烟测试，零依赖 |
 | `scripts/pack.mjs` | 打包发布 zip 到 `dist/`（纯 Node，无依赖） |
+| `docs/` | 面向使用者的文档：install / config / publish（README 只留摘要+链接） |
 | `.agents/` | `rules/` 约束 · `memory/` 背景与决策 · `workflows/` 流程 · `skills/` 操作说明 · `commands/` 命令 |
 
 ## 改完必跑

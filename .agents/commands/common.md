@@ -42,7 +42,7 @@ node scripts/pack.mjs
 ## 发 npm 包（npmjs + GitHub Packages）
 
 两个包名：npmjs 上是 `karin-plugin-selfmsg`，GitHub Packages 上必须是 `@ylovexln/karin-plugin-selfmsg`（该源强制 scope）。
-正常流程是**推 `v*` tag**，由 [publish.yml](../../.github/workflows/publish.yml) 自动发布：
+正常流程是**推 `v*` tag**，由 [releases.yml](../../.github/workflows/releases.yml) 自动发布：
 
 ```bash
 git tag v0.0.2 && git push origin v0.0.2

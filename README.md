@@ -2,228 +2,115 @@
 
 让 Karin 接受 OneBot11 的 `message_sent`（上报自身消息）事件，使其进入插件层。
 
-[GitHub](https://github.com/YlovexLN/karin-plugin-selfmsg) · [问题反馈](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) · 包名 `karin-plugin-selfmsg` · AGPL-3.0
+[GitHub](https://github.com/YlovexLN/karin-plugin-selfmsg) · [问题反馈](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) · npm `karin-plugin-selfmsg` · AGPL-3.0
 
 ## 解决什么问题
 
-同一个 QQ 号接入多个框架时（如 AstrBot + Karin 共用一个 LLBot），协议端会把"bot 自己发出的
-消息"以 `message_sent` 上报。Karin 的 OneBot 适配器只分发 `message` / `notice` / `request` /
+同一个 QQ 号接入多个框架时（如 AstrBot + Karin 共用一个 LLBot），协议端会把「bot 自己发出的消息」
+以 `message_sent` 上报。Karin 的 OneBot 适配器只分发 `message` / `notice` / `request` /
 `meta_event`，`message_sent` 被当作未知事件丢弃——于是 kkk 这类插件永远收不到另一个框架
 发出的链接。
 
-本插件在运行时接管 OneBot 客户端的 `emit`，把它就地改写成等价的 `message` 事件再交回 Karin
-分发器。后续流程完全走原生路径，其它插件无感知。
-
-## 目录结构
-
-```
-karin-plugin-selfmsg/
-├── apps/status.js        #转发状态 命令
-├── config/default.json   默认配置，首次启动复制到 @karinjs/
-├── utils/
-│   ├── config.js         配置读取、白名单正则
-│   ├── links.js          链接提取、拆分投递
-│   ├── message.js        事件归一化、产物识别
-│   └── relay.js          核心：接管 emit、过滤、投递
-├── index.js              入口，导出 KARIN_PLUGIN_INIT
-├── web.config.js         WebUI 配置面板
-├── dir.js                路径常量
-├── scripts/
-│   ├── test.mjs          冒烟测试（零依赖）
-│   └── pack.mjs          打包发布 zip 到 dist/
-└── package.json
-```
+本插件在运行时接管 OneBot 客户端的 `emit`，把 `message_sent` 就地改写成等价的 `message` 事件
+再交回 Karin 分发器。后续完全走原生路径，其它插件无感知。
 
 ## 安装
 
-### 方式一：直接放目录（推荐）
+把目录放进 Karin 的插件目录，然后重启：
 
-把整个 `karin-plugin-selfmsg/` 目录放进 Karin 的插件目录，然后重启 Karin：
-
-```
-<Karin 根目录>/plugins/karin-plugin-selfmsg/
-├── index.js
-├── package.json
-└── ...
+```bash
+git clone https://github.com/YlovexLN/karin-plugin-selfmsg.git
+cp -r karin-plugin-selfmsg <Karin 根目录>/plugins/
 ```
 
-### 方式二：从 npmjs.com 安装
-
-包名 `karin-plugin-selfmsg`，公开包，**不需要 token**。
+也可以从 npm 装（公开包，不需要 token）：
 
 ```bash
 cd <Karin 根目录>
 pnpm add karin-plugin-selfmsg
-# 或
-npm i karin-plugin-selfmsg
 ```
 
-### 方式三：从 GitHub Packages 安装
-
-同一个版本也发布在 GitHub 的 npm 源上，包名带 scope：`@ylovexln/karin-plugin-selfmsg`。
-**GitHub Packages 不允许匿名下载，需要自己的 token**
-（[创建 token](https://github.com/settings/tokens)，勾 `read:packages`）。
-
-先在 Karin 根目录的 `.npmrc` 里加两行（也可以写进 `~/.npmrc` 全局生效）：
-
-```ini
-@ylovexln:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=<你的 token>
-```
+不想经过 npm 源，也可以直接从仓库装：
 
 ```bash
 cd <Karin 根目录>
-pnpm add @ylovexln/karin-plugin-selfmsg
+pnpm add github:YlovexLN/karin-plugin-selfmsg
 ```
 
-不想手改 `.npmrc` 的话：
-
-```bash
-pnpm config set @ylovexln:registry https://npm.pkg.github.com
-pnpm config set //npm.pkg.github.com/:_authToken <你的 token>
-pnpm add @ylovexln/karin-plugin-selfmsg
-```
-
-### 装完确认
-
-不管用哪种方式，都要在 **Karin 根目录**（不是 `plugins/`）安装，包会落在
-`node_modules/@ylovexln/karin-plugin-selfmsg`，重启 Karin 后自动扫描加载。
-
-> GitHub Packages 那条路要配 token、要处理 workspace 和软链接，麻烦得多。想少折腾就用方式一或方式二。
-> pnpm 提示 peer 警告可以忽略，本插件没有运行时依赖。
-
-### 确认接管成功
-
-启动日志出现这行即可：
+日志出现这行即为接管成功，之后发 `#转发状态`（仅主人）可查看统计：
 
 ```
 [selfmsg] 已接管 bot <self_id>（来源: BOT_CONNECT），message_sent 将被当作普通消息分发
 ```
 
-之后发 `#转发状态`（仅机器人主人可用）可查看接管数与统计。
+GitHub Packages 安装、token 配置、安装期报错、各方式对应的卸载命令 → [安装文档](https://github.com/YlovexLN/karin-plugin-selfmsg/blob/main/docs/install.md)
 
 ## 配置
 
-唯一来源是 `@karinjs/karin-plugin-selfmsg/config/config.json`，首次启动自动生成，
-内容取自包内的 [`config/default.json`](./config/default.json)。**不读环境变量。**
-
-改配置有两种方式，效果一样：Karin WebUI 的插件配置页，或直接编辑该文件。
-
-> 改完必须**重启 Karin**——本插件在框架启动早期就要接管事件，无法热应用。
+唯一来源 `@karinjs/karin-plugin-selfmsg/config/config.json`，首次启动自动生成。
+WebUI 插件配置页或直接编辑该文件，**改完需重启 Karin**（启动早期就要接管事件，无法热应用）。
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
 | `enable` | `true` | 总开关 |
 | `group` | `true` | 是否处理群内自发消息 |
-| `groupSender` | `"10000"` | 群消息伪造的发送者 QQ 号，保持默认即可，别填自己 / 群主 / 管理员 |
-| `groupSenderName` | `"群成员"` | 该发送者昵称 |
-| `match` | B站链接正则 | 内容白名单，不区分大小写 |
-| `matchAll` | `false` | 设 `true` 关闭白名单，放行全部自发消息（慎用） |
-| `split` | `true` | 一条消息含多个链接时拆成多条分别投递 |
-| `splitDelayMs` | `1500` | 拆分投递间隔（毫秒） |
-| `cooldownMs` | `8000` | 同一目标消息的冷却窗口（毫秒） |
-| `quietMs` | `8000` | 放行一条后的静默窗口（毫秒），设 `0` 关闭 |
-| `filterCard` | `true` | 丢弃含图片 / 卡片的自发消息，设 `false` 会**死循环** |
-| `debug` | `false` | 打印每条消息被放行 / 丢弃的原因 |
+| `match` | B站链接正则 | 内容白名单 |
+| `filterCard` | `true` | 丢弃图片 / 卡片回流，**关掉会死循环** |
 
-删掉 `config.json` 重启即可恢复默认。
+全量配置项、`groupSender` 的作用与风险 → [配置文档](https://github.com/YlovexLN/karin-plugin-selfmsg/blob/main/docs/config.md)
 
 ## 已知限制
 
-- **白名单按内容匹配**，无法区分消息是哪个框架发出的。
-- **注入后 `user_id` 不再是 bot 自己**，Karin 侧插件的"忽略自发消息"过滤拦不住它，控制点只能在发送侧。
-- **群消息的发送者必须伪造**：协议里自发消息的 `sender` 永远是 bot。默认 `10000` 是安全值，填主人或管理员会因为 `perm: master` 看的就是这个字段而被误判。
-- **依赖未文档化的内部符号**（`bot._onebot`、`karin.getBot()`、`BOT_CONNECT`）。若日志出现「没有找到 _onebot，接管失败」，说明框架升级改了字段名。
+- **白名单按内容匹配**，协议层无法区分消息是哪个框架发出的。
+- **注入后 `user_id` 不再是 bot 自己**，Karin 侧插件的「忽略自发消息」过滤拦不住它，控制点只能在发送侧。
+- **群消息的发送者必须伪造**：自发消息的 `sender` 永远是 bot。默认 `10000` 是安全值；填主人或管理员会因 `perm: master` 看的就是该字段而被误判。
+- **依赖未文档化的内部符号**（`bot._onebot`、`karin.getBot()`、`BOT_CONNECT`）。日志出现「没有找到 _onebot，接管失败」即说明框架升级改了字段名。
 
 ## 免责声明
 
-- 本插件按 **AGPL-3.0** 原样提供，**不附带任何担保**，使用风险自负。
-- 它依赖 Karin 未公开的内部符号（`bot._onebot`、`karin.getBot()`、`BOT_CONNECT`），**框架升级后可能失效**，请自行评估生产环境风险。
-- 插件只在本机进程内改写事件对象，**不联网、不上传、不收集任何数据**，不写数据库，不改框架源码。
-- 因使用本插件导致的账号风控、消息异常、群内刷屏等后果，由使用者自行承担。
-- 与腾讯、Bilibili、AstrBot、Karin 官方均无隶属关系。
+- 按 **AGPL-3.0** 原样提供，**不附带任何担保**，使用风险自负。
+- 依赖 Karin 未公开的内部符号，**框架升级后可能失效**。
+- 只在本机进程内改写事件对象，**不联网、不上传、不收集数据**，不写数据库，不改框架源码。
+- 因使用本插件导致的账号风控、消息异常、群内刷屏等后果由使用者承担；与腾讯、Bilibili、AstrBot、Karin 官方均无隶属关系。
 
 ## 开发
 
 ```bash
-pnpm test     # 冒烟测试，零依赖（自带 node-karin 桩件）
+pnpm test     # 冒烟测试 25 项，零依赖（自带 node-karin 桩件）
 pnpm lint     # 需要先 pnpm install
 ```
 
-25 项断言覆盖：私聊 / 群聊放行、静默窗口、白名单、产物过滤、多链接拆分、WebUI 保存。
+架构、约束、排障、决策记录见 [`AGENTS.md`](./AGENTS.md) 与 [`.agents/`](./.agents/)；
+发布流程（双源、OIDC、dist-tag）见 [发布文档](https://github.com/YlovexLN/karin-plugin-selfmsg/blob/main/docs/publish.md)。
 
-维护者文档见 [`AGENTS.md`](./AGENTS.md) 与 [`.agents/`](./.agents/)。
+## 卸载
 
-## 发布
-
-推 `v*` 开头的 tag 即发布，**同一版本会同时发到 npmjs.com 和 GitHub Packages**
-（[`publish.yml`](./.github/workflows/publish.yml)）：先校验 tag 与 `package.json` 的 `version`
-是否一致，再跑冒烟测试，然后依次发两个源。
-
-两个源包名不同，代码完全一样——发布时 CI 会临时改 `package.json` 的 `name`：
-
-| 源 | 包名 |
-| --- | --- |
-| npmjs.com | `karin-plugin-selfmsg` |
-| GitHub Packages | `@ylovexln/karin-plugin-selfmsg`（该源强制 scope） |
+按安装方式对应处理，然后重启 Karin：
 
 ```bash
-# 先把 package.json 的 version 改成 0.0.3 并提交
-git tag v0.0.3 && git push origin v0.0.3
+# 目录安装
+rm -rf <Karin 根目录>/plugins/karin-plugin-selfmsg
+
+# npm / GitHub 源安装
+cd <Karin 根目录> && pnpm remove karin-plugin-selfmsg
+
+# GitHub Packages 安装（包名带 scope）
+cd <Karin 根目录> && pnpm remove @ylovexln/karin-plugin-selfmsg
 ```
 
-发布需要仓库里配好 npmjs 的 **Trusted Publishing**（见下），之后 CI 不需要任何 npm token：
-
-- npmjs.com → OIDC（`permissions: id-token: write`），provenance 由 npm 自动生成
-- GitHub Packages → Actions 自带 `GITHUB_TOKEN`
-
-两个源发布前都会先 `npm view` 查该版本是否已存在，已存在就跳过——所以**重跑同一个 tag 不会红**。
-
-tag 与 `version` 不一致会直接失败——npm 不允许重发同一版本，这个校验能挡住打错 tag 的情况。
-
-### 首次发布（只做一次）
-
-Trusted Publisher 只能配置在**已存在的包**上，所以第一版必须手动发：
-
-```bash
-npm login
-npm publish --access public          # 需要 2FA 验证码
-```
-
-然后在 https://www.npmjs.com/package/karin-plugin-selfmsg/access 里绑 GitHub Actions：
-
-```
-Organization or user:  YlovexLN
-Repository:            karin-plugin-selfmsg
-Workflow filename:     publish.yml
-```
-
-绑完之后，后续所有版本都由 CI 免 token 发布。
-
-**预发布版本**（`0.0.2-beta.0` 这种带 `-` 的）会自动发布到 `beta` 这个 dist-tag，不会占用 `latest`：
-
-```bash
-npm i karin-plugin-selfmsg@beta     # 安装最新预发布
-npm i karin-plugin-selfmsg          # 仍然拿 stable
-```
-
-`-rc.1` → `rc`，`-alpha.3` → `alpha`，规则是取预发布标识的第一段。
-
-## 卸载与回退
-
-删除插件目录并重启 Karin 即可还原。本插件不改框架源码、不写数据库；配置文件在
-`@karinjs/karin-plugin-selfmsg/config/config.json`，删掉后重启即恢复默认。
+想连配置一起清掉，再删 `@karinjs/karin-plugin-selfmsg/`（不删则保留原设置）。
+本插件不改框架源码、不写数据库，删完即彻底还原。
 
 ## 作者
 
 YlovexLN · [GitHub](https://github.com/YlovexLN) · [ylovexln@foxmail.com](mailto:ylovexln@foxmail.com)
 
-用出问题请到 [Issues](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) 提，附上 Karin 版本、
+出问题请到 [Issues](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) 提，附上 Karin 版本、
 日志里的 `[selfmsg]` 行、以及复现步骤。
 
 ## 致谢
 
-本项目代码与文档由 **DeepSeek Harness** 配合 **DeepSeek-V4.1-Flash** 模型编写；需求、部署与实测由作者完成。
+代码与文档由 **DeepSeek Harness** 配合 **DeepSeek-V4.1-Flash** 模型编写；需求、部署与实测由作者完成。
 
 ## License
 
