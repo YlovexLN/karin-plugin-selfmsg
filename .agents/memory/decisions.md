@@ -147,23 +147,53 @@
 
 ---
 
-## ADR-9 同一版本同时发 npmjs.com 与 GitHub Packages
+## ADR-9 双源发布：npmjs 用无 scope 名，GitHub Packages 用 scoped 名
 
-**背景**：GitHub Packages 不支持匿名下载（公开包也要 token），别人装插件必须先配 `.npmrc` 和 PAT；
-而 npmjs.com 的公开包是匿名可读的。插件是要给别人用的，token 门槛太高。
+**背景**：GitHub Packages 不支持匿名下载（公开包也要 token），而 npmjs.com 的公开包匿名可读。
+更麻烦的是 GitHub Packages **强制** scoped 包名，而 npm 的 `publishConfig` 不支持改 `name`——
+同一个 `package.json` 无法同时满足两个源的命名要求。
 
-**决定**：`publish.yml` 里连续发两个源，包名统一为 `@ylovexln/karin-plugin-selfmsg`。
-npmjs 的 scoped 公共包同样匿名可装，所以不必为了发 npmjs 而改回无 scope 名字。
+**决定**：仓库里的 `name` 保持 `karin-plugin-selfmsg`（与目录名、`@karinjs/<包名>` 配置目录、
+插件规范前缀全部一致）；发布时在 CI 里逐个改：
 
-**为什么不在 npmjs 用无 scope 的 `karin-plugin-selfmsg`**：一个 package.json 只能有一个 name，
-GitHub Packages 又强制 scope，二选一。保留 scope 能双源同版本发布，代价是安装命令带 `@ylovexln/`。
+```yaml
+npm pkg set name="karin-plugin-selfmsg"              # → npmjs.com
+npm publish --registry=https://registry.npmjs.org
+
+npm pkg set name="@ylovexln/karin-plugin-selfmsg"    # → GitHub Packages
+npm publish --registry=https://npm.pkg.github.com
+```
+
+**为什么不用两份 package.json 或 monorepo**：源码只有一份，改 name 只要一行命令；
+两个包的**内容**都由同一个 `files` 白名单生成，不会出现版本漂移。
 
 **代价**：
 
-- 需要多维护一个 `NPM_TOKEN` secret（npmjs 的 Automation token）；
-- 两个源的版本必须一致，`publish.yml` 里用同一个 tag 和同一个 dist-tag 保证这点；
-- 若某天想彻底符合「包名以 karin-plugin- 开头」的规范，只能放弃 GitHub Packages，
-  改成无 scope 名只发 npmjs（见 ADR-8）。
+- 两个包名是独立实体，dist-tag 各管各的（同一个 tag 同批发，天然一致）；
+- CI 依赖 `npm pkg set`，要求 runner 的 npm ≥ 7；
+- 用户要记两个名字，README 必须写清哪个源用哪个。
 
-**幂等性**：`NPM_TOKEN` 的检查放在所有发布动作之前，缺 token 时立刻失败，
-避免 GitHub Packages 已发出去、npmjs 没发，重跑又撞 `EPUBLISHCONFLICT`。
+**幂等性**：`NPM_TOKEN` 的检查放在所有发布动作之前，缺 token 立刻失败，
+避免 npmjs 已发出去、GitHub 没发，重跑又撞 `EPUBLISHCONFLICT`。
+
+---
+
+## ADR-10 npmjs 用 Trusted Publishing（OIDC），不在仓库里存 npm token
+
+**背景**：npm 正在下线 classic token 的 Automation 类型，而 Automation 正是 CI 发布的标准做法；
+Granular token 需要勾「Bypass 2FA」才能免交互，等于把长期凭据放在仓库 Secrets 里。
+
+**决定**：npmjs 那一半用 Trusted Publishing（OIDC），`id-token: write` 换取短期凭据，
+仓库里不存任何 npm token；provenance 由 npm 自动生成，不需要 `--provenance`。
+
+**首次发布的死结**：Trusted Publisher 只能配置在已存在的包上，新包没有设置页。
+所以第一版由维护者本地 `npm login && npm publish` 手动发出，绑定 workflow 后 CI 才接管。
+
+**代价**：
+
+- workflow 文件名被绑定，改文件名要回 npm 后台更新配置；
+- 要求 npm ≥ 11.5，因此 CI 用 node 24（node 20 自带 npm 10，不支持 OIDC）；
+- 首次发布需要人工输一次 OTP。
+
+**GitHub Packages 不受影响**：用 Actions 自带 `GITHUB_TOKEN`，权限由 workflow 的
+`permissions: packages: write` 授予。

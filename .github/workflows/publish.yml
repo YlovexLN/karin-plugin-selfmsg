@@ -1,10 +1,21 @@
-# 双源发布：GitHub Packages + npmjs.com
+# 双源发布：npmjs.com（无 scope）+ GitHub Packages（scoped）
 #
 # - 推 v* 开头的 tag 即发布；也可以手动触发
-# - 发布前校验 tag 与 package.json 的 version 一致，再跑冒烟测试
+# - 校验 tag 与 package.json 的 version 一致 → 冒烟测试 → 依次发两个源
 # - 预发布版本（带 -）发布到 beta/rc 等 dist-tag，不占 latest
-# - GitHub Packages 用自带 GITHUB_TOKEN；npmjs 用 secrets.NPM_TOKEN
-# - 包名必须是 `@<仓库所有者>/...`（GitHub Packages 要求），npmjs 同样接受 scoped 公共包
+# - 发布前查该版本是否已存在，重跑自动跳过，不会撞 E403
+#
+# 认证方式：
+#   npmjs.com        → Trusted Publishing（OIDC），仓库里不存任何 npm token
+#   GitHub Packages  → Actions 自带 GITHUB_TOKEN（permissions.packages: write）
+#
+# 为什么包名要分两个：GitHub Packages 强制 `@owner/` 前缀，而 npm 的 publishConfig
+# 不支持改 name，只能在发布前用 `npm pkg set` 临时改。
+#
+# 首次发布的特殊之处：Trusted Publisher 只能配置在已存在的包上，
+# 所以第一版由维护者本地 `npm login && npm publish` 手动发出，
+# 之后到 https://www.npmjs.com/package/karin-plugin-selfmsg/access 绑定本 workflow，
+# CI 才开始免 token 发布。
 name: publish
 
 on:
@@ -13,28 +24,38 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# 连推多个 tag 时串行，避免两个 run 抢同一个版本号
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # npmjs Trusted Publishing（OIDC）
+  packages: write # GitHub Packages
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    # fork 上推 tag 不空跑
+    if: github.repository == 'YlovexLN/karin-plugin-selfmsg'
     env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GITHUB_PKG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
+      # Trusted Publishing 要求 npm >= 11.5，node 24 自带 npm 11
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          registry-url: https://npm.pkg.github.com
+          node-version: 24
+          registry-url: https://registry.npmjs.org
 
-      # 放在最前面：缺 token 时立刻失败，避免只发出去一半、重跑又撞版本冲突
-      - name: 检查 NPM_TOKEN
+      - name: 确认 npm 版本支持 OIDC
         run: |
-          if [ -z "${NPM_TOKEN}" ]; then
-            echo "::error::缺少 secrets.NPM_TOKEN，无法发布到 npmjs.com"
-            echo "在仓库 Settings → Secrets and variables → Actions 里添加 NPM_TOKEN（Automation 类型）"
+          VER="$(npm --version)"
+          echo "npm $VER"
+          if [ "$(printf '%s\n' 11.5.0 "$VER" | sort -V | head -n1)" != "11.5.0" ]; then
+            echo "::error::npm $VER 低于 11.5.0，不支持 Trusted Publishing"
             exit 1
           fi
 
@@ -69,12 +90,59 @@ jobs:
           echo "value=$DIST_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VER dist-tag=$DIST_TAG"
 
+      # 幂等：重跑同一 tag 时跳过已发布的源，而不是红在 E403
+      - name: 查询两个源上的发布状态
+        id: state
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+
+          # $1 包名 $2 源 $3 token（npmjs 是公开包，可以不传）→ true/false/error
+          check () {
+            local out
+            if out=$(NODE_AUTH_TOKEN="$3" npm view "$1@$VER" version --registry="$2" 2>&1); then
+              echo false
+            elif printf '%s' "$out" | grep -q 'E404'; then
+              echo true
+            else
+              echo error
+              printf '%s\n' "$out" >&2
+            fi
+          }
+
+          NPM_NEEDED=$(check karin-plugin-selfmsg https://registry.npmjs.org "")
+          GH_NEEDED=$(check @ylovexln/karin-plugin-selfmsg https://npm.pkg.github.com "$GITHUB_PKG_TOKEN")
+
+          for v in "$NPM_NEEDED" "$GH_NEEDED"; do
+            if [ "$v" = error ]; then
+              echo "::error::registry 状态查询失败，不能当成「未发布」，请检查网络或 token"
+              exit 1
+            fi
+          done
+
+          echo "npmjs_needed=$NPM_NEEDED" >> "$GITHUB_OUTPUT"
+          echo "gh_needed=$GH_NEEDED" >> "$GITHUB_OUTPUT"
+          echo "待发布：npmjs=$NPM_NEEDED GitHubPackages=$GH_NEEDED"
+
+      # 发布前剥掉开发用字段，让 npm 上的 manifest 只留运行时信息
+      - name: 清理 manifest
+        run: |
+          npm pkg delete devDependencies
+          npm pkg delete scripts
+
+      # Trusted Publishing：不带 NODE_AUTH_TOKEN，npm 用 OIDC 交换短期凭据，
+      # provenance 也由 npm 自动生成，不需要 --provenance
+      - name: 发布到 npmjs.com
+        if: steps.state.outputs.npmjs_needed == 'true'
+        run: |
+          npm pkg set name="karin-plugin-selfmsg"
+          npm publish --registry=https://registry.npmjs.org \
+            --tag "${{ steps.dist.outputs.value }}"
+
       - name: 发布到 GitHub Packages
-        run: npm publish --registry=https://npm.pkg.github.com --tag "${{ steps.dist.outputs.value }}"
+        if: steps.state.outputs.gh_needed == 'true'
+        run: |
+          npm pkg set name="@ylovexln/karin-plugin-selfmsg"
+          npm publish --registry=https://npm.pkg.github.com \
+            --tag "${{ steps.dist.outputs.value }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 发布到 npmjs.com
-        run: npm publish --registry=https://registry.npmjs.org --tag "${{ steps.dist.outputs.value }}"
-        env:
-          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}

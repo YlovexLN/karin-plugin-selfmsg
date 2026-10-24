@@ -41,14 +41,14 @@ node scripts/pack.mjs
 
 ## 发 npm 包（npmjs + GitHub Packages）
 
-包名 `@ylovexln/karin-plugin-selfmsg`，同时发到 `https://registry.npmjs.org` 与 `https://npm.pkg.github.com`。
+两个包名：npmjs 上是 `karin-plugin-selfmsg`，GitHub Packages 上必须是 `@ylovexln/karin-plugin-selfmsg`（该源强制 scope）。
 正常流程是**推 `v*` tag**，由 [publish.yml](../../.github/workflows/publish.yml) 自动发布：
 
 ```bash
 git tag v0.0.2 && git push origin v0.0.2
 ```
 
-发布前会校验 tag 与 `package.json` 的 `version` 一致，不一致直接失败。
+发布前会校验 tag 与 `package.json` 的 `version` 一致，不一致直接失败。npmjs 走 Trusted Publishing（OIDC），CI 不需要 npm token。
 
 本地手动发（两个源各需一个 token）：
 

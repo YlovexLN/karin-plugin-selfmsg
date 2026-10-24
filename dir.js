@@ -9,10 +9,10 @@ import { fileURLToPath } from 'node:url'
 export const PluginDir = dirname(fileURLToPath(import.meta.url))
 
 /**
- * 配置目录名，**不带 scope**。
+ * 包名 / 配置目录名，与 package.json 的 `name`、仓库目录名一致。
  *
- * package.json 的 `name` 是 `@ylovexln/karin-plugin-selfmsg`（GitHub Packages 要求 scoped），
- * 但配置目录固定用这个名字，好处是路径干净（`@karinjs/karin-plugin-selfmsg/config`），
- * 将来换 npm 源或换所有者也不用迁移用户配置。
+ * 配置路径为 `@karinjs/karin-plugin-selfmsg/config`。
+ * 发到 GitHub Packages 时 CI 会临时改成 `@ylovexln/karin-plugin-selfmsg`，
+ * 但那只影响注册表上的包名，不影响这里——换源或换所有者都不用迁移用户配置。
  */
 export const PluginName = 'karin-plugin-selfmsg'

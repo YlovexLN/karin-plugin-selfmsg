@@ -1,5 +1,5 @@
 {
-  "name": "@ylovexln/karin-plugin-selfmsg",
+  "name": "karin-plugin-selfmsg",
   "version": "0.0.2-beta.1",
   "description": "让 Karin 接受 OneBot11 的 message_sent（上报自身消息）事件，使其进入插件层；用于同账号多框架场景下让 kkk 收到其它框架发出的链接",
   "type": "module",
@@ -23,7 +23,6 @@
     "config"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
     "access": "public"
   },
   "repository": {

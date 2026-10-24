@@ -2,7 +2,7 @@
 
 让 Karin 接受 OneBot11 的 `message_sent`（上报自身消息）事件，使其进入插件层。
 
-[GitHub](https://github.com/YlovexLN/karin-plugin-selfmsg) · [问题反馈](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) · 包名 `@ylovexln/karin-plugin-selfmsg` · AGPL-3.0
+[GitHub](https://github.com/YlovexLN/karin-plugin-selfmsg) · [问题反馈](https://github.com/YlovexLN/karin-plugin-selfmsg/issues) · 包名 `karin-plugin-selfmsg` · AGPL-3.0
 
 ## 解决什么问题
 
@@ -47,20 +47,21 @@ karin-plugin-selfmsg/
 └── ...
 ```
 
-### 方式二：从 npmjs.com 安装（需要 Karin 支持 npm 插件）
+### 方式二：从 npmjs.com 安装
 
-包名 `@ylovexln/karin-plugin-selfmsg`，公开包，**不需要 token**。
+包名 `karin-plugin-selfmsg`，公开包，**不需要 token**。
 
 ```bash
 cd <Karin 根目录>
-pnpm add @ylovexln/karin-plugin-selfmsg
+pnpm add karin-plugin-selfmsg
 # 或
-npm i @ylovexln/karin-plugin-selfmsg
+npm i karin-plugin-selfmsg
 ```
 
 ### 方式三：从 GitHub Packages 安装
 
-同一个版本也发布在 GitHub 的 npm 源上，但 **GitHub Packages 不允许匿名下载，需要自己的 token**
+同一个版本也发布在 GitHub 的 npm 源上，包名带 scope：`@ylovexln/karin-plugin-selfmsg`。
+**GitHub Packages 不允许匿名下载，需要自己的 token**
 （[创建 token](https://github.com/settings/tokens)，勾 `read:packages`）。
 
 先在 Karin 根目录的 `.npmrc` 里加两行（也可以写进 `~/.npmrc` 全局生效）：
@@ -159,21 +160,51 @@ pnpm lint     # 需要先 pnpm install
 （[`publish.yml`](./.github/workflows/publish.yml)）：先校验 tag 与 `package.json` 的 `version`
 是否一致，再跑冒烟测试，然后依次发两个源。
 
+两个源包名不同，代码完全一样——发布时 CI 会临时改 `package.json` 的 `name`：
+
+| 源 | 包名 |
+| --- | --- |
+| npmjs.com | `karin-plugin-selfmsg` |
+| GitHub Packages | `@ylovexln/karin-plugin-selfmsg`（该源强制 scope） |
+
 ```bash
 # 先把 package.json 的 version 改成 0.0.3 并提交
 git tag v0.0.3 && git push origin v0.0.3
 ```
 
-发布需要仓库里配好 `NPM_TOKEN`（npmjs 的 Automation token）——GitHub Packages 用自带
-`GITHUB_TOKEN`，npmjs 用它。缺了会在第一步就失败，不会出现"只发出去一半"。
+发布需要仓库里配好 npmjs 的 **Trusted Publishing**（见下），之后 CI 不需要任何 npm token：
+
+- npmjs.com → OIDC（`permissions: id-token: write`），provenance 由 npm 自动生成
+- GitHub Packages → Actions 自带 `GITHUB_TOKEN`
+
+两个源发布前都会先 `npm view` 查该版本是否已存在，已存在就跳过——所以**重跑同一个 tag 不会红**。
 
 tag 与 `version` 不一致会直接失败——npm 不允许重发同一版本，这个校验能挡住打错 tag 的情况。
+
+### 首次发布（只做一次）
+
+Trusted Publisher 只能配置在**已存在的包**上，所以第一版必须手动发：
+
+```bash
+npm login
+npm publish --access public          # 需要 2FA 验证码
+```
+
+然后在 https://www.npmjs.com/package/karin-plugin-selfmsg/access 里绑 GitHub Actions：
+
+```
+Organization or user:  YlovexLN
+Repository:            karin-plugin-selfmsg
+Workflow filename:     publish.yml
+```
+
+绑完之后，后续所有版本都由 CI 免 token 发布。
 
 **预发布版本**（`0.0.2-beta.0` 这种带 `-` 的）会自动发布到 `beta` 这个 dist-tag，不会占用 `latest`：
 
 ```bash
-npm i @ylovexln/karin-plugin-selfmsg@beta     # 安装最新预发布
-npm i @ylovexln/karin-plugin-selfmsg          # 仍然拿 stable
+npm i karin-plugin-selfmsg@beta     # 安装最新预发布
+npm i karin-plugin-selfmsg          # 仍然拿 stable
 ```
 
 `-rc.1` → `rc`，`-alpha.3` → `alpha`，规则是取预发布标识的第一段。
