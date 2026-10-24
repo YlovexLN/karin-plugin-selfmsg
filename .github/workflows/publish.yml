@@ -91,33 +91,51 @@ jobs:
           echo "version=$VER dist-tag=$DIST_TAG"
 
       # 幂等：重跑同一 tag 时跳过已发布的源，而不是红在 E403
+      #
+      # 用 HTTP 状态码判断，不用 npm view 的错误码——GitHub Packages 对不存在的包
+      # 返回 401（不是 404），npm 会把它包成非 E404 的错误，容易误判成"查询失败"。
       - name: 查询两个源上的发布状态
         id: state
+        env:
+          GITHUB_PKG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VER="$(node -p "require('./package.json').version")"
 
-          # $1 包名 $2 源 $3 token（npmjs 是公开包，可以不传）→ true/false/error
-          check () {
-            local out
-            if out=$(NODE_AUTH_TOKEN="$3" npm view "$1@$VER" version --registry="$2" 2>&1); then
-              echo false
-            elif printf '%s' "$out" | grep -q 'E404'; then
-              echo true
-            else
-              echo error
-              printf '%s\n' "$out" >&2
-            fi
-          }
-
-          NPM_NEEDED=$(check karin-plugin-selfmsg https://registry.npmjs.org "")
-          GH_NEEDED=$(check @ylovexln/karin-plugin-selfmsg https://npm.pkg.github.com "$GITHUB_PKG_TOKEN")
-
-          for v in "$NPM_NEEDED" "$GH_NEEDED"; do
-            if [ "$v" = error ]; then
-              echo "::error::registry 状态查询失败，不能当成「未发布」，请检查网络或 token"
+          # npmjs：版本端点最直接，200=有 404=没有
+          NPM_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://registry.npmjs.org/karin-plugin-selfmsg/$VER")
+          case "$NPM_CODE" in
+            200) NPM_NEEDED=false ;;
+            404) NPM_NEEDED=true ;;
+            *)
+              echo "::error::npmjs 状态查询失败（HTTP $NPM_CODE）"
               exit 1
-            fi
-          done
+              ;;
+          esac
+
+          # GitHub Packages：包还没建时未授权会返回 401/403，按「未发布」处理
+          GH_CODE=$(curl -s -o /tmp/gh-pkg.json -w '%{http_code}' \
+            -H "Authorization: Bearer $GITHUB_PKG_TOKEN" \
+            -H "Accept: application/vnd.npm.install-v1+json" \
+            "https://npm.pkg.github.com/@ylovexln%2Fkarin-plugin-selfmsg")
+          case "$GH_CODE" in
+            200)
+              if node -e "const p=require('/tmp/gh-pkg.json');process.exit(p.versions&&p.versions['$VER']?0:1)"; then
+                GH_NEEDED=false
+              else
+                GH_NEEDED=true
+              fi
+              ;;
+            404) GH_NEEDED=true ;;
+            401|403)
+              echo "::warning::GitHub Packages 返回 $GH_CODE（包尚未创建或 token 无读权限），按未发布处理"
+              GH_NEEDED=true
+              ;;
+            *)
+              echo "::error::GitHub Packages 状态查询失败（HTTP $GH_CODE）"
+              exit 1
+              ;;
+          esac
 
           echo "npmjs_needed=$NPM_NEEDED" >> "$GITHUB_OUTPUT"
           echo "gh_needed=$GH_NEEDED" >> "$GITHUB_OUTPUT"
